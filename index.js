@@ -1,13 +1,15 @@
-
 const express = require('express')
 const {
     makeWASocket,
     useMultiFileAuthState,
-    fetchLatestBaileysVersion
+    fetchLatestBaileysVersion,
+    DisconnectReason
 } = require('@whiskeysockets/baileys')
 const fs = require('fs')
 const app = express()
-const PORT = 3000
+
+// ✅ Use dynamic port for Koyeb, fallback to 3000 for localhost
+const PORT = process.env.PORT || 3000
 
 app.use(express.json())
 
@@ -20,7 +22,7 @@ async function startSock() {
     sock = makeWASocket({
         version,
         auth: state,
-        printQRInTerminal: true, // QR code terminal එකේ පෙන්නයි (deprecated warning එයි)
+        printQRInTerminal: true,
         browser: ['Ubuntu', 'Chrome', '22.04.4']
     })
 
@@ -75,7 +77,7 @@ app.post('/send-message', async (req, res) => {
     }
 })
 
-// Start server
+// ✅ Start server on assigned port
 app.listen(PORT, () => {
-    console.log(`🚀 API running at http://localhost:${PORT}`)
+    console.log(`🚀 API running on port ${PORT}`)
 })
