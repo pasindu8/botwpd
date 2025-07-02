@@ -1,0 +1,19 @@
+{
+  "name": "whatsapp-bot",
+  "version": "1.0.0",
+  "description": "Baileys WhatsApp API bot with Express",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.4",
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["whatsapp", "bot", "baileys", "express", "nodejs"],
+  "author": "pasindu dulshan",
+  "license": "MIT"
+}
