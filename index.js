@@ -5,10 +5,9 @@ const {
     fetchLatestBaileysVersion,
     DisconnectReason
 } = require('@whiskeysockets/baileys')
+const qrcode = require('qrcode-terminal')
 const fs = require('fs')
 const app = express()
-
-// ✅ Use dynamic port for Koyeb, fallback to 3000 for localhost
 const PORT = process.env.PORT || 3000
 
 app.use(express.json())
@@ -22,34 +21,44 @@ async function startSock() {
     sock = makeWASocket({
         version,
         auth: state,
-        printQRInTerminal: true,
+        printQRInTerminal: false, // Deprecated – we use custom QR handler below
         browser: ['Ubuntu', 'Chrome', '22.04.4']
     })
 
     sock.ev.on('creds.update', saveCreds)
 
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update
+        const { connection, lastDisconnect, qr } = update
+
+        if (qr) {
+            qrcode.generate(qr, { small: true })
+        }
+
         if (connection === 'close') {
-            const shouldReconnect =
-                lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
+            const statusCode = lastDisconnect?.error?.output?.statusCode
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut
+
             console.log('🔌 Disconnected. Reconnecting...', shouldReconnect)
+
             if (shouldReconnect) {
                 startSock()
+            } else {
+                console.log("❌ Logged out. Please re-scan QR code.")
             }
         } else if (connection === 'open') {
             console.log('✅ WhatsApp connected!')
         }
     })
 
-    // Auto-reply every incoming message
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const msg = messages[0]
 
         if (!msg.key.fromMe && msg.message) {
             try {
                 const remoteJid = msg.key.remoteJid
-                await sock.sendMessage(remoteJid, { text: 'My New WhatsApp Number is 0723051652 (PDBOT🤖)' })
+                await sock.sendMessage(remoteJid, {
+                    text: 'My New WhatsApp Number is 0723051652 (PDBOT🤖)'
+                })
                 console.log('📩 Auto-replied to', remoteJid)
             } catch (err) {
                 console.error('❌ Auto-reply error:', err)
@@ -58,10 +67,9 @@ async function startSock() {
     })
 }
 
-// Start bot
 startSock()
 
-// API Endpoint for manual sending via Postman
+// Send message via API (POST)
 app.post('/send-message', async (req, res) => {
     const { number, message } = req.body
 
@@ -77,7 +85,7 @@ app.post('/send-message', async (req, res) => {
     }
 })
 
-// ✅ Start server on assigned port
+// Start Express server
 app.listen(PORT, () => {
     console.log(`🚀 API running on port ${PORT}`)
 })
