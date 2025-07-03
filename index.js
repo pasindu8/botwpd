@@ -11,7 +11,12 @@ const PORT = process.env.PORT || 3000
 
 app.use(express.json())
 
-let sock // global socket instance
+// ✅ GET / route to avoid "Cannot GET /"
+app.get('/', (req, res) => {
+    res.send('✅ WhatsApp API is running!')
+})
+
+let sock // global socket
 
 async function startSock() {
     const { state, saveCreds } = await useMultiFileAuthState('sessions')
@@ -20,40 +25,38 @@ async function startSock() {
     sock = makeWASocket({
         version,
         auth: state,
-        // ✅ QR එක හසුරවන්න printQRInTerminal වෙනුවට connection.update භාවිතා කරන්න
         browser: ['Ubuntu', 'Chrome', '22.04.4']
     })
 
     sock.ev.on('creds.update', saveCreds)
 
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update
-
-        if (qr) {
-            console.log('\n📱 Scan this QR to connect WhatsApp:')
-            console.log(qr)
-        }
-
+        const { connection, lastDisconnect } = update
         if (connection === 'close') {
-            const shouldReconnect =
-                lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
-            console.log('🔌 Disconnected. Reconnecting...', shouldReconnect)
-            if (shouldReconnect) {
-                startSock()
+            const statusCode = lastDisconnect?.error?.output?.statusCode
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut
+
+            console.log('🔌 Disconnected. Reconnecting?', shouldReconnect)
+
+            // ✅ Reconnect only if not replaced or logged out
+            if (shouldReconnect && statusCode !== DisconnectReason.restartRequired) {
+                setTimeout(() => startSock(), 5000) // Delay to avoid CPU loop
+            } else {
+                console.log('🛑 Not reconnecting. Reason:', DisconnectReason[statusCode])
             }
         } else if (connection === 'open') {
             console.log('✅ WhatsApp connected!')
         }
     })
 
+    // ✅ Auto-reply to incoming messages
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const msg = messages[0]
-
         if (!msg.key.fromMe && msg.message) {
             try {
                 const remoteJid = msg.key.remoteJid
                 await sock.sendMessage(remoteJid, {
-                    text: '🟢 My New WhatsApp Number is 0723051652 (PDBOT🤖)'
+                    text: 'My New WhatsApp Number is 0723051652 (PDBOT🤖)'
                 })
                 console.log('📩 Auto-replied to', remoteJid)
             } catch (err) {
@@ -63,10 +66,10 @@ async function startSock() {
     })
 }
 
-// Start bot
+// 🟢 Start bot
 startSock()
 
-// ✅ Manual Message Sending Endpoint
+// ✅ API to send messages via Postman
 app.post('/send-message', async (req, res) => {
     const { number, message } = req.body
 
@@ -82,12 +85,7 @@ app.post('/send-message', async (req, res) => {
     }
 })
 
-// ✅ Uptime bot/health check route (for Koyeb/cron-job.org)
-app.get('/', (req, res) => {
-    res.send('🟢 PDWhatsApp Bot is Running!')
-})
-
-// Start Express Server
+// 🟢 Start Express server
 app.listen(PORT, () => {
-    console.log(`🚀 API running at http://localhost:${PORT}`)
+    console.log(`🚀 API running on port ${PORT}`)
 })
