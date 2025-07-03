@@ -5,7 +5,6 @@ const {
     fetchLatestBaileysVersion,
     DisconnectReason
 } = require('@whiskeysockets/baileys')
-const qrcode = require('qrcode-terminal')
 const fs = require('fs')
 const app = express()
 const PORT = process.env.PORT || 3000
@@ -21,7 +20,7 @@ async function startSock() {
     sock = makeWASocket({
         version,
         auth: state,
-        printQRInTerminal: false, // Deprecated – we use custom QR handler below
+        // ✅ QR එක හසුරවන්න printQRInTerminal වෙනුවට connection.update භාවිතා කරන්න
         browser: ['Ubuntu', 'Chrome', '22.04.4']
     })
 
@@ -31,19 +30,16 @@ async function startSock() {
         const { connection, lastDisconnect, qr } = update
 
         if (qr) {
-            qrcode.generate(qr, { small: true })
+            console.log('\n📱 Scan this QR to connect WhatsApp:')
+            console.log(qr)
         }
 
         if (connection === 'close') {
-            const statusCode = lastDisconnect?.error?.output?.statusCode
-            const shouldReconnect = statusCode !== DisconnectReason.loggedOut
-
+            const shouldReconnect =
+                lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut
             console.log('🔌 Disconnected. Reconnecting...', shouldReconnect)
-
             if (shouldReconnect) {
                 startSock()
-            } else {
-                console.log("❌ Logged out. Please re-scan QR code.")
             }
         } else if (connection === 'open') {
             console.log('✅ WhatsApp connected!')
@@ -57,7 +53,7 @@ async function startSock() {
             try {
                 const remoteJid = msg.key.remoteJid
                 await sock.sendMessage(remoteJid, {
-                    text: 'My New WhatsApp Number is 0723051652 (PDBOT🤖)'
+                    text: '🟢 My New WhatsApp Number is 0723051652 (PDBOT🤖)'
                 })
                 console.log('📩 Auto-replied to', remoteJid)
             } catch (err) {
@@ -67,9 +63,10 @@ async function startSock() {
     })
 }
 
+// Start bot
 startSock()
 
-// Send message via API (POST)
+// ✅ Manual Message Sending Endpoint
 app.post('/send-message', async (req, res) => {
     const { number, message } = req.body
 
@@ -85,7 +82,12 @@ app.post('/send-message', async (req, res) => {
     }
 })
 
-// Start Express server
+// ✅ Uptime bot/health check route (for Koyeb/cron-job.org)
+app.get('/', (req, res) => {
+    res.send('🟢 PDWhatsApp Bot is Running!')
+})
+
+// Start Express Server
 app.listen(PORT, () => {
-    console.log(`🚀 API running on port ${PORT}`)
+    console.log(`🚀 API running at http://localhost:${PORT}`)
 })
