@@ -8,6 +8,7 @@ const {
 const fs = require('fs')
 const app = express()
 const PORT = process.env.PORT || 3000
+const qrcode = require('qrcode-terminal')
 
 app.use(express.json())
 
@@ -31,18 +32,23 @@ async function startSock() {
     sock.ev.on('creds.update', saveCreds)
 
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update
+        const { connection, lastDisconnect, qr } = update
+        if (qr) {
+            qrcode.generate(qr, { small: true })
+        }
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut
+            const needsRestart = statusCode === DisconnectReason.restartRequired
 
             console.log('🔌 Disconnected. Reconnecting?', shouldReconnect)
 
-            // ✅ Reconnect only if not replaced or logged out
-            if (shouldReconnect && statusCode !== DisconnectReason.restartRequired) {
-                setTimeout(() => startSock(), 5000) // Delay to avoid CPU loop
+            if (shouldReconnect) {
+                const delay = needsRestart ? 1000 : 5000
+                setTimeout(() => startSock(), delay)
             } else {
-                console.log('🛑 Not reconnecting. Reason:', DisconnectReason[statusCode])
+                const reason = statusCode && DisconnectReason[statusCode]
+                console.log('🛑 Not reconnecting. Reason:', reason || statusCode || 'unknown')
             }
         } else if (connection === 'open') {
             console.log('✅ WhatsApp connected!')
