@@ -1,4 +1,5 @@
 const express = require('express')
+const qrcode = require('qrcode-terminal')
 const {
     makeWASocket,
     useMultiFileAuthState,
@@ -31,15 +32,21 @@ async function startSock() {
     sock.ev.on('creds.update', saveCreds)
 
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update
+        const { connection, lastDisconnect, qr } = update
+        
+        if (qr) {
+            qrcode.generate(qr, { small: true })
+            console.log('✅ Please scan the QR code above!')
+        }
+
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut
 
             console.log('🔌 Disconnected. Reconnecting?', shouldReconnect)
 
-            // ✅ Reconnect only if not replaced or logged out
-            if (shouldReconnect && statusCode !== DisconnectReason.restartRequired) {
+            // ✅ Reconnect if not logged out (including restartRequired)
+            if (shouldReconnect) {
                 setTimeout(() => startSock(), 5000) // Delay to avoid CPU loop
             } else {
                 console.log('🛑 Not reconnecting. Reason:', DisconnectReason[statusCode])
@@ -55,10 +62,18 @@ async function startSock() {
         if (!msg.key.fromMe && msg.message) {
             try {
                 const remoteJid = msg.key.remoteJid
+                // පරණ auto-reply එක ඒ විදිහටම තියෙනවා
                 await sock.sendMessage(remoteJid, {
                     text: 'My New WhatsApp Number is 0723051652 (PDBOT🤖)'
                 })
                 console.log('📩 Auto-replied to', remoteJid)
+
+                // අලුත් 'hi' එක වෙනම දාලා තියෙනවා
+                const text = msg.message.conversation || msg.message.extendedTextMessage?.text || ''
+                if (text.trim().toLowerCase() === 'hi') {
+                    await sock.sendMessage(remoteJid, { text: 'hello' })
+                    console.log('✅ Auto-replied hello to', remoteJid)
+                } 
             } catch (err) {
                 console.error('❌ Auto-reply error:', err)
             }
